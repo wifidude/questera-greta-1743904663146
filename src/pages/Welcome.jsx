@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaArrowRight } from 'react-icons/fa';
 import ImageWithFallback from '../components/ImageWithFallback';
+import { EXAMPLE_IMAGES } from '../utils/constants';
 
 const ExampleCard = ({ title, partNumber, description, reorderPoint, reorderQty, location, department, color, imageUrl }) => {
   return (
@@ -19,10 +20,11 @@ const ExampleCard = ({ title, partNumber, description, reorderPoint, reorderQty,
           </div>
           <div className="w-24 h-24 bg-white rounded shadow-sm p-2">
             <ImageWithFallback
-              src="/qr-example.png"
+              src={EXAMPLE_IMAGES.DEFAULT_QR}
               alt="QR Code"
               className="w-full h-full object-contain"
               containerClassName="w-full h-full"
+              type="qr"
             />
           </div>
         </div>
@@ -79,7 +81,7 @@ const Welcome = () => {
       location: "Tool Crib, Drawer 7",
       department: "Machining",
       color: "#4F46E5",
-      imageUrl: "/examples/cnc-tap-m8-125.jpg"
+      imageUrl: EXAMPLE_IMAGES.CNC_TAP
     },
     {
       title: "Gray PLA Filament Roll",
@@ -90,7 +92,7 @@ const Welcome = () => {
       location: "3D Printing Room, Shelf B",
       department: "Prototyping",
       color: "#10B981",
-      imageUrl: "/examples/pla-gray-1kg.jpg"
+      imageUrl: EXAMPLE_IMAGES.PLA_FILAMENT
     },
     {
       title: "Safety Gloves",
@@ -101,7 +103,7 @@ const Welcome = () => {
       location: "PPE Storage, Shelf 4",
       department: "Safety",
       color: "#F59E0B",
-      imageUrl: "/examples/sg-lrg.jpg"
+      imageUrl: EXAMPLE_IMAGES.SAFETY_GLOVES
     }
   ];
 

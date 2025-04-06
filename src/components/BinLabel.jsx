@@ -1,51 +1,78 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useDepartmentColors } from '../contexts/DepartmentContext';
+import ImageWithFallback from './ImageWithFallback';
+import { imageLogger } from '../utils/debugLogger';
 
 const BinLabel = ({ data, showDimensions = true }) => {
   const { departmentColors } = useDepartmentColors();
   const departmentColor = data.departmentColor || departmentColors[data.department] || '#4F46E5';
-  
-  const defaultImage = 'data:image/svg+xml,' + encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-      <rect width="64" height="64" fill="#f3f4f6"/>
-      <path d="M32 24a8 8 0 1 1 0 16 8 8 0 0 1 0-16" fill="#d1d5db"/>
-    </svg>
-  `);
+
+  // Enhanced debugging for data mapping
+  imageLogger.debug('BinLabel component render', {
+    componentName: 'BinLabel',
+    partNumber: data.part_number,
+    imageUrl: data.image_url,
+    hasImageUrl: !!data.image_url,
+    dataKeys: Object.keys(data),
+    imageUrlType: typeof data.image_url,
+    fullData: data,
+    timestamp: new Date().toISOString()
+  });
 
   return (
     <div className="flex flex-col items-center">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-[288px] h-[96px] bg-white shadow-md flex items-center"
-        style={{ borderLeft: `16px solid ${departmentColor}` }}
+        className="bg-white shadow-md relative"
+        style={{
+          width: '288px',
+          height: '96px',
+          borderLeft: '4px solid',
+          borderLeftColor: departmentColor,
+        }}
       >
-        <div className="flex-1 p-4 flex justify-between items-center">
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900">
+        <div className="flex h-full p-4">
+          <div className="flex-1 pr-4">
+            <h3 className="text-lg font-semibold text-gray-800 truncate">
               {data.product_name || 'Product Name'}
             </h3>
-            <p className="text-gray-500">
-              {(data.part_number || 'PART NUMBER').toUpperCase()}
+            <p className="text-sm text-gray-600 uppercase truncate">
+              {data.part_number || 'PART-123'}
             </p>
           </div>
           <div className="w-16 h-16 bg-gray-50 rounded-lg overflow-hidden">
-            <img
-              src={data.image_url || defaultImage}
-              alt={data.product_name}
-              className="w-full h-full object-contain"
-              onError={(e) => {
-                e.target.src = defaultImage;
-              }}
-            />
+            <div
+              className="relative w-full h-full"
+              data-testid="bin-label-image-container"
+            >
+              <ImageWithFallback
+                src={data.image_url}
+                alt={data.product_name}
+                className="w-full h-full object-contain"
+                containerClassName="w-full h-full"
+                type="product"
+                componentName="BinLabel"
+                onLoad={(success) => {
+                  imageLogger.debug('BinLabel image load result', {
+                    success,
+                    src: data.image_url,
+                    partNumber: data.part_number,
+                    timestamp: new Date().toISOString()
+                  });
+                }}
+              />
+            </div>
           </div>
         </div>
       </motion.div>
-      
       {showDimensions && (
-        <div className="mt-2 text-sm text-gray-500">
-          Bin Label: 3" × 1"
+        <div className="mt-2 text-sm text-gray-500 flex flex-col items-center">
+          <span>Physical Label Size: 3" × 1"</span>
+          <span className="text-xs text-gray-400">
+            Actual print dimensions when exported
+          </span>
         </div>
       )}
     </div>

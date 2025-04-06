@@ -1,8 +1,10 @@
+import { processImageUrl } from './imageUtils';
+import { imageLogger } from './debugLogger';
+
 const REQUIRED_COLUMNS = [
   'product_name',
   'part_number',
   'description',
-  'qr_code_url',
   'reorder_point',
   'reorder_quantity',
   'location',
@@ -12,11 +14,12 @@ const REQUIRED_COLUMNS = [
 const NUMERIC_FIELDS = ['reorder_point', 'reorder_quantity'];
 const URL_FIELDS = ['qr_code_url', 'image_url'];
 
-export const validateExcelData = (data) => {
+export const validateExcelData = async (data) => {
   const errors = [];
   const validRows = [];
 
-  data.forEach((row, index) => {
+  for (let index = 0; index < data.length; index++) {
+    const row = data[index];
     const rowNumber = index + 2; // Adding 2 because Excel starts at 1 and we skip header
     const rowErrors = [];
 
@@ -34,28 +37,32 @@ export const validateExcelData = (data) => {
       }
     });
 
-    // Validate URLs
-    URL_FIELDS.forEach(field => {
-      if (row[field] && !isValidUrl(row[field])) {
-        rowErrors.push(`${field} must be a valid URL`);
+    // Validate and process URLs
+    for (const field of URL_FIELDS) {
+      if (row[field]) {
+        try {
+          const processedUrl = await processImageUrl(row[field], field === 'qr_code_url' ? 'qr' : 'product');
+          row[field] = processedUrl;
+          imageLogger.debug(`Processed ${field}`, { original: row[field], processed: processedUrl });
+        } catch (error) {
+          rowErrors.push(`Invalid ${field}: ${error.message}`);
+          imageLogger.error(`${field} validation failed`, { url: row[field], error: error.message });
+        }
       }
-    });
+    }
 
     if (rowErrors.length > 0) {
-      errors.push({ row: rowNumber, errors: rowErrors });
+      errors.push({
+        row: rowNumber,
+        errors: rowErrors
+      });
     } else {
       validRows.push(row);
     }
-  });
-
-  return { errors, validRows };
-};
-
-const isValidUrl = (string) => {
-  try {
-    new URL(string);
-    return true;
-  } catch (_) {
-    return false;
   }
+
+  return {
+    errors,
+    validRows
+  };
 };

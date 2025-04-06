@@ -7,31 +7,26 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: '0.5in',
+    padding: '36',
     backgroundColor: 'white',
   }
 });
 
-// Calculate items per page based on page size and item dimensions
 const calculateItemsPerPage = (pageSize, itemSize, padding) => {
-  const usableWidth = pageSize.width - (2 * padding); // Account for page padding
+  const usableWidth = pageSize.width - (2 * padding);
   const usableHeight = pageSize.height - (2 * padding);
-  
   const cols = Math.floor(usableWidth / itemSize.width);
   const rows = Math.floor(usableHeight / itemSize.height);
-  
   return cols * rows;
 };
 
 export const KanbanCardDocument = ({ data, dimensions }) => {
-  // US Letter size in points (72 points per inch)
-  const pageSize = { width: 612, height: 792 }; // 8.5" x 11"
+  const pageSize = { width: 612, height: 792 }; // US Letter size in points
   const padding = 36; // 0.5" padding in points
   const itemSize = {
-    width: parseFloat(dimensions.CARD.WIDTH),
-    height: parseFloat(dimensions.CARD.HEIGHT)
+    width: dimensions.WIDTH,
+    height: dimensions.HEIGHT
   };
-  
   const itemsPerPage = calculateItemsPerPage(pageSize, itemSize, padding);
 
   return (
@@ -53,10 +48,9 @@ export const BinLabelDocument = ({ data, dimensions }) => {
   const pageSize = { width: 612, height: 792 };
   const padding = 36;
   const itemSize = {
-    width: parseFloat(dimensions.LABEL.WIDTH),
-    height: parseFloat(dimensions.LABEL.HEIGHT)
+    width: dimensions.WIDTH,
+    height: dimensions.HEIGHT
   };
-  
   const itemsPerPage = calculateItemsPerPage(pageSize, itemSize, padding);
 
   return (

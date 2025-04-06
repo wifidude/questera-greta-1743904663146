@@ -1,127 +1,147 @@
-import React from 'react';
-import { pdf } from '@react-pdf/renderer';
-import { KanbanCardDocument, BinLabelDocument } from '../components/pdf/Documents';
-import { DIMENSIONS } from './constants';
-import { getDefaultImage } from './imageUtils';
+import { pdfLogger } from './debugLogger';
 
-const processData = (data) => {
-  const dataArray = Array.isArray(data) ? data : [data];
-  
-  return dataArray.map(item => ({
-    product_name: item.product_name?.trim() || 'Untitled Product',
-    part_number: (item.part_number || '').toUpperCase().trim(),
-    description: item.description?.trim() || '',
-    reorder_point: item.reorder_point?.toString() || '0',
-    reorder_quantity: item.reorder_quantity?.toString() || '0',
-    location: item.location?.trim() || '',
-    department: item.department?.trim() || 'Default',
-    departmentColor: item.departmentColor || '#4F46E5',
-    revision_date: item.revision_date || new Date().toLocaleDateString(),
-    revision_number: item.revision_number || '1',
-    qr_code_url: processQRCodeUrl(item.qr_code_url, item.part_number),
-    image_url: processImageUrl(item.image_url)
-  }));
+const createPrintWindow = (content, size = { width: '3in', height: '5in' }) => {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('Please allow pop-ups to print');
+    return null;
+  }
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Print Kanban Card</title>
+        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        <style>
+          @page {
+            size: ${size.width} ${size.height};
+            margin: 0;
+          }
+          
+          body {
+            margin: 0;
+            padding: 0;
+            width: ${size.width};
+            height: ${size.height};
+          }
+
+          .print-content {
+            width: ${size.width};
+            height: ${size.height};
+            overflow: hidden;
+            page-break-after: always;
+            background-color: white;
+            position: relative;
+          }
+
+          /* Preserve colors and backgrounds */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+
+          /* Force background colors */
+          .bg-gray-50 { background-color: #F9FAFB !important; }
+          .bg-red-50 { background-color: #FEF2F2 !important; }
+          .bg-blue-50 { background-color: #EFF6FF !important; }
+
+          /* Force text colors */
+          .text-gray-800 { color: #1F2937 !important; }
+          .text-gray-600 { color: #4B5563 !important; }
+          .text-red-600 { color: #DC2626 !important; }
+          .text-blue-600 { color: #2563EB !important; }
+
+          /* Ensure images are visible */
+          img {
+            display: block !important;
+            visibility: visible !important;
+            print-color-adjust: exact;
+          }
+
+          /* Fix QR code display */
+          .qr-code {
+            width: 96px !important;
+            height: 96px !important;
+            display: block !important;
+          }
+
+          /* Fix flex layouts */
+          .flex { display: flex !important; }
+          .flex-1 { flex: 1 !important; }
+          .justify-between { justify-content: space-between !important; }
+          .items-center { align-items: center !important; }
+          
+          /* Fix grid layouts */
+          .grid { display: grid !important; }
+          .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .gap-2 { gap: 0.5rem !important; }
+          
+          /* Fix spacing */
+          .p-4 { padding: 1rem !important; }
+          .mb-4 { margin-bottom: 1rem !important; }
+          .space-y-2 > * + * { margin-top: 0.5rem !important; }
+        </style>
+      </head>
+      <body>
+        ${content}
+        <script>
+          window.onload = () => {
+            setTimeout(() => {
+              window.print();
+              setTimeout(() => window.close(), 500);
+            }, 500);
+          };
+        </script>
+      </body>
+    </html>
+  `);
+
+  return printWindow;
 };
 
-const processQRCodeUrl = (url, partNumber) => {
-  if (!url) {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(partNumber)}&format=png`;
+export const printElement = (elementId) => {
+  const element = document.getElementById(elementId);
+  if (!element) {
+    console.error('Print element not found');
+    return;
   }
-  try {
-    new URL(url);
-    return url;
-  } catch {
-    return getDefaultImage('qr');
-  }
-};
 
-const processImageUrl = (url) => {
-  if (!url) return getDefaultImage('product');
-  
-  try {
-    if (url.match(/^https?:\/\//)) {
-      new URL(url);
-      return url;
-    }
-    
-    if (url.startsWith('/')) {
-      return import.meta.env.DEV ? url : `.${url}`;
-    }
-    
-    return `./${url.replace(/^\.?\/?/, '')}`;
-  } catch {
-    console.warn('Invalid image URL, using default');
-    return getDefaultImage('product');
+  const printWindow = createPrintWindow(element.outerHTML);
+  if (printWindow) {
+    printWindow.document.close();
   }
 };
 
-export const generatePDF = async (data, type = 'both') => {
-  try {
-    const processedData = processData(data);
-    
-    if (!processedData.length) {
-      throw new Error('No valid data to generate PDF');
-    }
+export const printMultipleCards = (cards) => {
+  if (!cards || !cards.length) {
+    console.error('No cards to print');
+    return;
+  }
 
-    const dimensions = DIMENSIONS.PDF;
+  const printContent = cards.map(card => `
+    <div class="print-content">
+      <div id="printable-card-${card.part_number}">
+        ${card.element.outerHTML}
+      </div>
+    </div>
+  `).join('');
 
-    if (type === 'both') {
-      const cardDoc = <KanbanCardDocument data={processedData} dimensions={dimensions} />;
-      const labelDoc = <BinLabelDocument data={processedData} dimensions={dimensions} />;
-
-      const [cardBlob, labelBlob] = await Promise.all([
-        pdf(cardDoc).toBlob(),
-        pdf(labelDoc).toBlob()
-      ]);
-
-      return { cardBlob, labelBlob };
-    } else {
-      const DocumentComponent = type === 'cards' ? KanbanCardDocument : BinLabelDocument;
-      const doc = <DocumentComponent data={processedData} dimensions={dimensions} />;
-      const blob = await pdf(doc).toBlob();
-      
-      return { [`${type}Blob`]: blob };
-    }
-  } catch (error) {
-    console.error('PDF generation error:', error);
-    throw new Error('Failed to generate PDF');
+  const printWindow = createPrintWindow(printContent);
+  if (printWindow) {
+    printWindow.document.close();
   }
 };
 
-const downloadPDF = async (blob, filename) => {
-  try {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Error downloading PDF:', error);
-    throw new Error('Failed to download PDF');
+export const generatePDF = async (data, type = 'card') => {
+  if (Array.isArray(data)) {
+    printMultipleCards(data);
+  } else {
+    printElement('printable-card');
   }
 };
 
-export const generateAndDownloadPDF = async (data, type = 'both') => {
-  try {
-    if (!data || (Array.isArray(data) && data.length === 0)) {
-      throw new Error('No data provided for PDF generation');
-    }
-
-    const result = await generatePDF(data, type);
-    const timestamp = new Date().getTime();
-
-    if (type === 'both') {
-      await downloadPDF(result.cardBlob, `kanban-cards-${timestamp}.pdf`);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await downloadPDF(result.labelBlob, `kanban-labels-${timestamp}.pdf`);
-    } else {
-      await downloadPDF(result[`${type}Blob`], `kanban-${type}-${timestamp}.pdf`);
-    }
-  } catch (error) {
-    console.error('PDF generation/download error:', error);
-    throw error;
-  }
+export const generateAndDownloadPDF = async (data, type = 'card') => {
+  await generatePDF(data, type);
 };

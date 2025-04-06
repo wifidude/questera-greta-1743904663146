@@ -1,34 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { generatePDF } from '../utils/pdfGenerator.jsx';
+import html2canvas from 'html2canvas';
+import { pdfLogger } from '../utils/debugLogger';
 
-const PDFPreview = ({ data, type }) => {
-  const [pdfUrl, setPdfUrl] = useState(null);
+const PDFPreview = ({ data, type = 'cards' }) => {
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let mounted = true;
 
-    const loadPDF = async () => {
+    const generatePreview = async () => {
       try {
         setLoading(true);
-        const result = await generatePDF(data, type);
-        const blob = type === 'both' ? result.cardBlob : result[type + 'Blob'];
+        setError(null);
 
-        if (mounted) {
-          if (pdfUrl) {
-            URL.revokeObjectURL(pdfUrl);
-          }
-          const url = URL.createObjectURL(blob);
-          setPdfUrl(url);
-          setError(null);
+        const element = document.getElementById('printable-card');
+        if (!element) {
+          throw new Error('Preview element not found');
         }
+
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          backgroundColor: '#ffffff'
+        });
+
+        if (!mounted) return;
+
+        const previewImage = canvas.toDataURL('image/png');
+        setPreviewUrl(previewImage);
+        pdfLogger.info('Preview generated successfully');
       } catch (err) {
-        if (mounted) {
-          setError('Failed to generate PDF preview');
-          console.error('PDF preview error:', err);
-        }
+        if (!mounted) return;
+        setError('Failed to generate preview');
+        pdfLogger.error('Preview generation failed', { error: err.message });
       } finally {
         if (mounted) {
           setLoading(false);
@@ -36,12 +45,12 @@ const PDFPreview = ({ data, type }) => {
       }
     };
 
-    loadPDF();
+    generatePreview();
 
     return () => {
       mounted = false;
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl);
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
       }
     };
   }, [data, type]);
@@ -66,9 +75,17 @@ const PDFPreview = ({ data, type }) => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="w-full h-96 border border-gray-200 rounded-lg overflow-hidden"
+      className="w-full bg-gray-100 rounded-lg p-4"
     >
-      <iframe src={pdfUrl} className="w-full h-full" title="PDF Preview" />
+      {previewUrl && (
+        <div className="shadow-lg">
+          <img
+            src={previewUrl}
+            alt="PDF Preview"
+            className="w-full h-auto rounded"
+          />
+        </div>
+      )}
     </motion.div>
   );
 };

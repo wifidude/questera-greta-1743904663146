@@ -22,15 +22,12 @@ const ErrorFallback = ({ error }) => (
 );
 
 const root = document.getElementById('root');
-
 if (!root) {
   throw new Error('Root element not found. Please check your HTML file.');
 }
 
 createRoot(root).render(
-  <React.StrictMode>
-    <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
+  <ErrorBoundary FallbackComponent={ErrorFallback}>
+    <App />
+  </ErrorBoundary>
 );

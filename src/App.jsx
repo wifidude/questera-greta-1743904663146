@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { DepartmentProvider } from './contexts/DepartmentContext';
 import Layout from './components/Layout';
+import DebugBox from './components/DebugBox';
 
 // Lazy load components
 const Welcome = React.lazy(() => import('./pages/Welcome'));
@@ -41,25 +42,33 @@ function App() {
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <DepartmentProvider>
         <Router>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Welcome />} />
-                <Route path="create" element={<CreateMethod />} />
-                <Route path="bulk" element={<Home />} />
-                <Route path="individual" element={<IndividualCreate />} />
-                <Route path="preview" element={<Preview />} />
-                <Route path="*" element={
-                  <div className="flex items-center justify-center min-h-[60vh]">
-                    <div className="text-center">
-                      <h2 className="text-2xl font-bold text-gray-800 mb-4">Page Not Found</h2>
-                      <p className="text-gray-600">The page you're looking for doesn't exist.</p>
+          <Layout>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                <Route path="/" element={<Welcome />} />
+                <Route path="/create" element={<CreateMethod />} />
+                <Route path="/bulk" element={<Home />} />
+                <Route path="/individual" element={<IndividualCreate />} />
+                <Route path="/preview" element={<Preview />} />
+                <Route
+                  path="*"
+                  element={
+                    <div className="flex items-center justify-center min-h-[60vh]">
+                      <div className="text-center">
+                        <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                          Page Not Found
+                        </h2>
+                        <p className="text-gray-600">
+                          The page you're looking for doesn't exist.
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                } />
-              </Route>
-            </Routes>
-          </Suspense>
+                  }
+                />
+              </Routes>
+            </Suspense>
+          </Layout>
+          <DebugBox />
         </Router>
       </DepartmentProvider>
     </ErrorBoundary>

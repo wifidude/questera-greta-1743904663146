@@ -1,119 +1,132 @@
-// Core image handling utilities
-import { DIMENSIONS } from './constants';
+import { EXAMPLE_IMAGES } from './constants';
+import { imageLogger } from './debugLogger';
 
-// Default image as base64 SVG - optimized and clean
-const DEFAULT_IMAGE = `data:image/svg+xml,${encodeURIComponent(`
-  <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
-    <rect width="100" height="100" fill="#f3f4f6"/>
-    <path d="M35 40h30v20H35z" fill="#d1d5db"/>
-    <path d="M30 30h40v40H30zm2 2h36v36H32z" fill="#9ca3af"/>
-    <circle cx="45" cy="45" r="5" fill="#9ca3af"/>
-    <path d="M60 55L45 45l-10 15h35z" fill="#9ca3af"/>
-  </svg>
-`)}`;
-
-// Default QR code as base64 SVG
-const DEFAULT_QR = `data:image/svg+xml,${encodeURIComponent(`
-  <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
-    <rect width="100" height="100" fill="#f3f4f6"/>
-    <rect x="25" y="25" width="50" height="50" fill="#d1d5db"/>
-  </svg>
-`)}`;
-
-export const getDefaultImage = (type = 'product') => {
-  return type === 'qr' ? DEFAULT_QR : DEFAULT_IMAGE;
+const DEFAULT_IMAGES = {
+  product: EXAMPLE_IMAGES.DEFAULT_PRODUCT,
+  qr: EXAMPLE_IMAGES.DEFAULT_QR
 };
 
-export const processImageUrl = (url, type = 'product') => {
-  if (!url) return getDefaultImage(type);
+const imageCache = new Map();
+
+export const getDefaultImage = (type = 'product') => {
+  imageLogger.debug('Getting default image', { type });
+  return DEFAULT_IMAGES[type] || DEFAULT_IMAGES.product;
+};
+
+const getBaseUrl = () => {
+  const baseUrl = window.location.origin + window.location.pathname.replace(/\/+$/, '');
+  imageLogger.debug('Base URL resolved', { baseUrl });
+  return baseUrl;
+};
+
+export const processImageUrl = async (url, type = 'product', forPrint = false) => {
+  imageLogger.debug('Processing image URL', {
+    originalUrl: url,
+    type,
+    forPrint,
+    timestamp: new Date().toISOString()
+  });
+
+  if (!url || url.trim() === '') {
+    imageLogger.warn('Empty URL provided, using default', { type });
+    return getDefaultImage(type);
+  }
 
   try {
-    // Handle absolute URLs
+    let processedUrl = url;
+    
+    // If it's already an absolute URL, use it directly
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      new URL(url); // Validate URL format
-      return url;
+      imageLogger.debug('Using absolute URL directly', { url });
+      processedUrl = url;
+    } else {
+      const baseUrl = getBaseUrl();
+      // Handle local example images and other local images
+      if (url.startsWith('/')) {
+        processedUrl = `${baseUrl}${url}`;
+        imageLogger.debug('Local image path resolved', {
+          original: url,
+          resolved: processedUrl
+        });
+      }
     }
 
-    // Handle data URLs
-    if (url.startsWith('data:')) {
-      return url;
-    }
+    // Validate image exists
+    imageLogger.debug('Validating image URL', { url: processedUrl });
+    
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = () => {
+        imageLogger.debug('Image loaded successfully', {
+          url: processedUrl,
+          width: img.width,
+          height: img.height,
+          timestamp: new Date().toISOString()
+        });
+        resolve();
+      };
+      img.onerror = () => {
+        imageLogger.error('Image failed to load', {
+          url: processedUrl,
+          type,
+          timestamp: new Date().toISOString()
+        });
+        reject(new Error('Image load failed'));
+      };
+      img.crossOrigin = "anonymous";
+      img.src = processedUrl;
+    });
 
-    // Handle relative URLs
-    // Remove leading './' or '/' if present
-    const cleanUrl = url.replace(/^\.?\/?/, '');
-    
-    // For development environment
-    if (import.meta.env.DEV) {
-      return `/${cleanUrl}`;
-    }
-    
-    // For production environment with base URL
-    return `./${cleanUrl}`;
+    return processedUrl;
   } catch (error) {
-    console.warn(`Invalid image URL: ${url}`);
+    imageLogger.error('Image processing failed', {
+      url,
+      error: error.message,
+      stack: error.stack,
+      type,
+      timestamp: new Date().toISOString()
+    });
     return getDefaultImage(type);
   }
 };
 
-export const validateImage = async (url) => {
-  if (!url || url.startsWith('data:')) return true;
+export const preloadImage = async (url, type = 'product', forPrint = false) => {
+  imageLogger.debug('Preloading image', {
+    url,
+    type,
+    forPrint,
+    timestamp: new Date().toISOString()
+  });
+
+  if (!url) {
+    imageLogger.warn('No URL provided for preload, using default');
+    return getDefaultImage(type);
+  }
+
+  const cacheKey = `${url}-${forPrint}`;
+  if (imageCache.has(cacheKey)) {
+    imageLogger.debug('Returning cached image', { url });
+    return imageCache.get(cacheKey);
+  }
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
-    const response = await fetch(url, {
-      method: 'HEAD',
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) throw new Error('Image not found');
-    
-    const contentType = response.headers.get('content-type');
-    return contentType && contentType.startsWith('image/');
+    const processedUrl = await processImageUrl(url, type, forPrint);
+    imageCache.set(cacheKey, processedUrl);
+    return processedUrl;
   } catch (error) {
-    console.warn('Image validation failed:', error);
-    return false;
+    imageLogger.error('Image preload failed', {
+      url,
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    return getDefaultImage(type);
   }
-};
-
-// Image dimensions validator
-export const validateImageDimensions = (imageUrl, maxWidth = DIMENSIONS.CARD.IMAGE_WIDTH, maxHeight = DIMENSIONS.CARD.IMAGE_HEIGHT) => {
-  return new Promise((resolve) => {
-    const img = new Image();
-    
-    img.onload = () => {
-      resolve({
-        valid: img.width <= maxWidth && img.height <= maxHeight,
-        width: img.width,
-        height: img.height
-      });
-    };
-    
-    img.onerror = () => {
-      resolve({ valid: false, width: 0, height: 0 });
-    };
-    
-    img.src = imageUrl;
-  });
-};
-
-// Cache for validated images
-const imageCache = new Map();
-
-export const getCachedImage = (url, type = 'product') => {
-  if (imageCache.has(url)) {
-    return imageCache.get(url);
-  }
-  
-  const processedUrl = processImageUrl(url, type);
-  imageCache.set(url, processedUrl);
-  return processedUrl;
 };
 
 export const clearImageCache = () => {
+  imageLogger.debug('Clearing image cache', {
+    cacheSize: imageCache.size
+  });
   imageCache.clear();
 };
